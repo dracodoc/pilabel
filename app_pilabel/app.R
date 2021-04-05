@@ -1,9 +1,13 @@
 if (!require(pacman)) install.packages("pacman")
 pacman::p_load(grid, ggplot2, ggfittext, shiny, shinydashboard, shinyWidgets, lubridate, glue)
 
+# Sys.setlocale(category = "LC_ALL", locale = "en_US.UTF-8")
+
 fontfamily_vec <- c("Bookman", "Courier", "Palatino", "NimbusSan")
 # always landscape, w, h
-label_size_list <- list(address = c(3.0, 1.2), shipping = c(4, 2.2))
+# original size 3.5x 1.125, 4x2.3125. adjust to make sure not out of edge
+label_size_list <- list(address = c(3.0, 1.2), shipping = c(3.2, 2.5))
+# not sure what unit, but it's similar ratio.
 media_size <- c(address = "w79h252", shipping = "w167h288")
 
 ui <- dashboardPage(
@@ -43,10 +47,16 @@ ui <- dashboardPage(
                           )            
           ),
           fluidRow(column(4, sliderInput("padding", "Margin", value = 0, min = 0, max = 16))),
-          fluidRow(column(8, textInput("text_input", label = NULL, placeholder = "Input one line, Enter for next line")),
-                   column(2, actionButton("add_text", "Enter", icon = icon("plus"),
-                                          style = "background-color: #CDDC39;")))
-          
+          # text input ----
+          fluidRow(
+            column(2, actionButton("clear", "Reset Text", icon = icon("ban"))),
+            br(),
+            column(6, textInput("text_input", label = NULL, 
+                                       placeholder = "Input one line, Enter for next line")),
+            # column(6, verbatimTextOutput("text_value")),
+            column(2, actionButton("add_text", "Enter", icon = icon("plus"),
+                                          style = "background-color: #CDDC39;"))            
+          )
           ),
       box(title = "Preview", status = "primary", solidHeader = TRUE, width = 12,
           # height need to be used with renderplot height together
@@ -71,6 +81,12 @@ server <- function(input, output, session) {
     }
     updateTextInput(session = session, "text_input", value = "")
   })
+  observeEvent(input$clear, {
+    values$label_text <- ""
+  })
+  # output$text_value <- renderPrint({
+  #   values$label_text
+  # })
   # always plot preview, also save plot so we can modify it before print to pdf
   values$plot_obj <- NULL
   # so many parameters, maybe just put inside shiny plot call, not as function.
@@ -93,7 +109,7 @@ server <- function(input, output, session) {
     selected_fontface <- "plain"
     if (!is.null(input$font_option)) selected_fontface <- paste(input$font_option, collapse = ".")
     # this control line spacing
-    line_height <- 0.9
+    line_height <- 1
     padding <- input$padding
     point <- data.frame(x = 0, y = 0, text = values$label_text)
     # before plot ----
@@ -122,19 +138,9 @@ server <- function(input, output, session) {
               axis.text.y = element_blank(),
               axis.ticks.y = element_blank()
         )
-    # use void for final printing, but we need some boundary to show relative position in preview
-    # +
-    # theme_void()
     # make round corner but not working. give up on this. https://stackoverflow.com/questions/48199791/rounded-corners-in-ggplot2
     values$plot_obj <- g
     g
-    # in this environment, cannot find fontfamily
-    # showtext_begin() 
-    # g <- ggplot() +
-    #   annotate(geom = "text", x = 0, y = 0, label = "test text", size = 20,
-    #            family = "NimbusSan", fontface = "bold.italic")
-    # showtext_end() 
-    # g
   }, height = function() {
     switch(input$label_size, address = 150, shipping = 300)
   })
@@ -156,12 +162,8 @@ server <- function(input, output, session) {
     # lp -o media=w79h252 label2.pdf
     # lp -o media=w167h288 label2.pdf
     # browser()
-    # system2("lp", c("-o", glue("media={media_size[[input$label_size]]}"), file.path(pdf_path, "label.pdf")))
+    # if your printer need different parameters, change it here.
+    system2("lp", c("-o", glue("media={media_size[[input$label_size]]}"), file.path(pdf_path, pdf_name)))
   })
-  # maybe we disabled firefox pdf viewer. also there is no viewer in phone
-  # output$pdfviewer_holder <- renderUI({
-  #   tags$iframe(style="height:300px; width:100%", src = "2021-04-04_14-35-43.949.pdf")
-  # })
-
 }
 shinyApp(ui, server)
